@@ -1,0 +1,67 @@
+import pandas as pd
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename, asksaveasfilename
+
+# Select Excel file
+Tk().withdraw()
+print("Select Excel file (DateTime, Water Level)...")
+input_file = askopenfilename(filetypes=[("Excel Files", "*.xlsx *.xls")])
+
+# Read Excel file
+df = pd.read_excel(input_file, header=None)
+df.columns = ['DateTime', 'Water Level']
+
+# Remove duplicate header row if present
+df = df[df['DateTime'] != 'DateTime']
+
+# Convert DateTime column
+df['DateTime'] = pd.to_datetime(
+    df['DateTime'],
+    dayfirst=True,
+    errors='coerce'
+)
+
+# Remove invalid dates
+df = df.dropna(subset=['DateTime'])
+
+# Convert Water Level to numeric
+df['Water Level'] = pd.to_numeric(df['Water Level'], errors='coerce')
+
+# Sort data
+df = df.sort_values('DateTime')
+
+# Set DateTime as index
+df.set_index('DateTime', inplace=True)
+
+# Create complete daily date range
+start_date = pd.to_datetime("2000-01-01")
+end_date = df.index.max()
+
+daily_dates = pd.date_range(start=start_date,
+                            end=end_date,
+                            freq='D')
+
+# Reindex to include missing days
+result = df.reindex(daily_dates)
+
+# -----------------------------
+# Cubic Spline Interpolation
+# -----------------------------
+result['Water Level'] = result['Water Level'].interpolate(
+    method='spline',
+    order=3
+)
+
+# Reset index
+result.reset_index(inplace=True)
+result.rename(columns={'index': 'DateTime'}, inplace=True)
+
+# Save output
+output_file = asksaveasfilename(
+    defaultextension=".xlsx",
+    filetypes=[("Excel Files", "*.xlsx")]
+)
+
+result.to_excel(output_file, index=False)
+
+print("Cubic spline interpolation completed successfully!")
